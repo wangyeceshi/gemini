@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智农 OS | 全栈智慧农业管理平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        agri: {
+                            base: '#0b1120', // 深蓝黑底色
+                            panel: '#151e32', // 面板色
+                            accent: '#00f2c3', // 科技青
+                            warn: '#f59e0b',
+                            danger: '#ef4444',
+                            border: 'rgba(255,255,255,0.08)'
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['Menlo', 'Monaco', 'Courier New', 'monospace'],
+                        sans: ['Inter', 'system-ui', 'sans-serif']
+                    },
+                    animation: {
+                        'scan-vertical': 'scan 3s linear infinite',
+                    },
+                    keyframes: {
+                        scan: {
+                            '0%': { top: '0%' },
+                            '100%': { top: '100%' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* 基础样式覆盖 */
+        body { background-color: #0b1120; color: #e2e8f0; font-family: 'Inter', sans-serif; overflow: hidden; }
+        
+        /* 滚动条 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+
+        /* 玻璃拟态与边框 */
+        .glass-panel {
+            background: rgba(21, 30, 50, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.05);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+        
+        .active-nav {
+            background: rgba(0, 242, 195, 0.1);
+            border-left: 3px solid #00f2c3;
+            color: #00f2c3;
+        }
+
+        /* 3D 转换模式 CSS */
+        .perspective-container {
+            perspective: 1000px;
+            overflow: hidden;
+        }
+        .map-3d-tilt {
+            transform: rotateX(60deg) scale(1.5) translateY(-20%);
+            transition: transform 1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* 网格叠加层 (用于三维感) */
+        .grid-overlay {
+            background-image: 
+                linear-gradient(rgba(0, 242, 195, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 242, 195, 0.1) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+        }
+
+        /* 扫描线动画 */
+        .scan-line {
+            position: absolute; width: 100%; height: 2px;
+            background: #00f2c3;
+            box-shadow: 0 0 10px #00f2c3;
+            opacity: 0.8;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="flex h-screen w-screen">
+
+    <nav class="w-64 bg-agri-panel border-r border-agri-border flex flex-col z-50">
+        <div class="h-16 flex items-center px-6 border-b border-agri-border">
+            <i class="fas fa-cubes text-agri-accent text-xl mr-3"></i>
+            <span class="font-bold text-lg tracking-wide">智农 OS <span class="text-xs text-gray-500 ml-1">v3.0</span></span>
+        </div>
+
+        <div class="flex-1 py-6 space-y-1 overflow-y-auto">
+            <div class="px-4 text-xs font-bold text-gray-500 uppercase mb-2 tracking-wider">资源中心</div>
+            <a href="#" onclick="switchTab('tab-field')" class="nav-item flex items-center px-6 py-3 text-gray-400 hover:text-white hover:bg-white/5 transition active-nav" id="nav-field">
+                <i class="fas fa-map w-6"></i> 农田信息管理
+            </a>
+
+            <div class="px-4 text-xs font-bold text-gray-500 uppercase mt-6 mb-2 tracking-wider">AI 智能分析</div>
+            <a href="#" onclick="switchTab('tab-analysis')" class="nav-item flex items-center px-6 py-3 text-gray-400 hover:text-white hover:bg-white/5 transition" id="nav-analysis">
+                <i class="fas fa-brain w-6"></i> 智能巡田分析
+            </a>
+            
+            <div class="px-4 text-xs font-bold text-gray-500 uppercase mt-6 mb-2 tracking-wider">精准作业</div>
+            <a href="#" onclick="switchTab('tab-vra')" class="nav-item flex items-center px-6 py-3 text-gray-400 hover:text-white hover:bg-white/5 transition" id="nav-vra">
+                <i class="fas fa-spray-can w-6"></i> 指导变量作业
+            </a>
+            <a href="#" onclick="switchTab('tab-3d')" class="nav-item flex items-center px-6 py-3 text-gray-400 hover:text-white hover:bg-white/5 transition" id="nav-3d">
+                <i class="fas fa-mountain w-6"></i> 三维山地航线
+            </a>
+
+            <div class="px-4 text-xs font-bold text-gray-500 uppercase mt-6 mb-2 tracking-wider">监管与数据</div>
+            <a href="#" onclick="switchTab('tab-monitor')" class="nav-item flex items-center px-6 py-3 text-gray-400 hover:text-white hover:bg-white/5 transition" id="nav-monitor">
+                <i class="fas fa-desktop w-6"></i> 数据化监管
+            </a>
+        </div>
+
+        <div class="p-4 border-t border-agri-border">
+            <div class="flex items-center">
+                <img src="https://i.pravatar.cc/100?img=33" class="w-8 h-8 rounded-full border border-agri-accent">
+                <div class="ml-3">
+                    <div class="text-sm font-bold">Admin User</div>
+                    <div class="text-xs text-agri-accent">超级管理员</div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-1 relative overflow-hidden bg-agri-base perspective-container">
+        
+        <div id="global-map" class="absolute inset-0 bg-gray-900 z-0 transition-all duration-1000 ease-in-out">
+            <div class="absolute inset-0 bg-[url('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/16/27221/54680')] bg-cover bg-center opacity-60"></div>
+            <div class="absolute inset-0 grid-overlay opacity-30"></div>
+        </div>
+
+        <div id="tab-field" class="content-tab absolute inset-0 z-10 flex">
+            <div class="w-80 glass-panel border-r border-agri-border m-4 rounded-xl flex flex-col overflow-hidden">
+                <div class="p-4 border-b border-agri-border">
+                    <h2 class="font-bold text-lg mb-1">农田档案</h2>
+                    <p class="text-xs text-gray-400">已数字化地块: 124 块 | 总面积: 5,400 亩</p>
+                </div>
+                <div class="p-3">
+                    <input type="text" placeholder="搜索地块名称/编号..." class="w-full bg-black/30 border border-agri-border rounded px-3 py-2 text-sm focus:border-agri-accent outline-none text-white">
+                </div>
+                <div class="flex-1 overflow-y-auto p-3 space-y-3">
+                    <div class="bg-white/5 p-3 rounded hover:bg-white/10 cursor-pointer border-l-2 border-agri-accent transition">
+                        <div class="flex justify-between items-start">
+                            <span class="font-bold text-sm">建三江-A04区</span>
+                            <span class="text-xs bg-agri-accent text-black px-1.5 rounded font-bold">水稻</span>
+                        </div>
+                        <div class="text-xs text-gray-400 mt-1">面积: 120.5 亩 | 重建时间: 2024-05-12</div>
+                        <div class="flex space-x-2 mt-2">
+                             <button class="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded border border-blue-500/30">影像查看</button>
+                             <button class="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded border border-purple-500/30">边界编辑</button>
+                        </div>
+                    </div>
+                     <div class="bg-white/5 p-3 rounded hover:bg-white/10 cursor-pointer border-l-2 border-transparent hover:border-gray-500 transition">
+                        <div class="flex justify-between items-start">
+                            <span class="font-bold text-sm">新疆石河子-C12</span>
+                            <span class="text-xs bg-white text-black px-1.5 rounded font-bold">棉花</span>
+                        </div>
+                        <div class="text-xs text-gray-400 mt-1">面积: 340.0 亩 | 重建时间: 2024-04-20</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="absolute top-4 right-4 flex space-x-3">
+                <button class="glass-panel px-4 py-2 rounded-lg text-sm font-bold hover:text-agri-accent flex items-center">
+                    <i class="fas fa-satellite mr-2"></i> 农田影像重建
+                </button>
+                <button class="glass-panel px-4 py-2 rounded-lg text-sm font-bold hover:text-agri-accent flex items-center">
+                    <i class="fas fa-draw-polygon mr-2"></i> AI 边界识别
+                </button>
+            </div>
+            
+            <div class="absolute bottom-8 left-96 right-8 glass-panel rounded-xl p-6 flex justify-between items-center animate-slide-up">
+                <div>
+                    <h3 class="text-xl font-bold mb-1">建三江-A04区 <span class="text-sm font-normal text-gray-400"> (档案编号: F-2024-8821)</span></h3>
+                    <div class="flex space-x-6 text-sm text-gray-300 mt-2">
+                        <span><i class="fas fa-ruler-combined text-agri-accent mr-2"></i>确权面积: 120.5 亩</span>
+                        <span><i class="fas fa-seedling text-green-400 mr-2"></i>作物: 粳稻 (生长周期: 分蘖期)</span>
+                        <span><i class="fas fa-history text-blue-400 mr-2"></i>最后作业: 植保飞防 (3天前)</span>
+                    </div>
+                </div>
+                <div class="h-16 w-16 bg-white/10 rounded flex items-center justify-center border border-agri-border">
+                    <i class="fas fa-qrcode text-3xl"></i>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-analysis" class="content-tab absolute inset-0 z-10 hidden flex flex-col p-6">
+            <div class="glass-panel rounded-lg p-2 flex justify-center space-x-2 mb-4 w-fit mx-auto">
+                <button onclick="switchAnalysis('level')" class="px-6 py-2 rounded text-sm font-bold bg-agri-accent text-black transition">平整监测</button>
+                <button onclick="switchAnalysis('emergence')" class="px-6 py-2 rounded text-sm font-bold text-gray-400 hover:text-white transition">棉花出苗</button>
+                <button onclick="switchAnalysis('pest')" class="px-6 py-2 rounded text-sm font-bold text-gray-400 hover:text-white transition">病虫害巡检</button>
+                <button onclick="switchAnalysis('yield')" class="px-6 py-2 rounded text-sm font-bold text-gray-400 hover:text-white transition">产量预估</button>
+            </div>
+
+            <div class="flex-1 flex gap-6">
+                <div class="flex-1 glass-panel rounded-xl relative overflow-hidden group border border-agri-accent/30">
+                    <div id="analysis-layer-bg" class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80')] bg-cover bg-center filter grayscale opacity-50"></div>
+                    
+                    <div class="absolute inset-0 w-full h-full animate-scan-vertical pointer-events-none z-10">
+                        <div class="scan-line"></div>
+                        <div class="h-20 w-full bg-gradient-to-b from-agri-accent/20 to-transparent absolute -top-20"></div>
+                    </div>
+
+                    <div id="analysis-overlay" class="absolute inset-0 z-0 opacity-80 mix-blend-overlay">
+                        <div class="w-full h-full bg-gradient-to-tr from-blue-600 via-transparent to-red-600 opacity-60"></div>
+                    </div>
+                    
+                    <div class="absolute top-4 left-4 bg-black/60 backdrop-blur px-4 py-3 rounded border-l-4 border-agri-accent">
+                        <div class="text-xs text-gray-400 uppercase">当前算法模型</div>
+                        <div class="font-bold text-lg text-white" id="algo-name">Terrain Leveling AI</div>
+                        <div class="text-xs text-agri-accent mt-1"><i class="fas fa-check-circle"></i> 分析完成</div>
+                    </div>
+                </div>
+
+                <div class="w-96 glass-panel rounded-xl p-6 flex flex-col">
+                    <h3 class="text-lg font-bold mb-4 border-b border-gray-700 pb-2">智能分析报告</h3>
+                    
+                    <div id="analysis-report-content" class="flex-1 space-y-6">
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-gray-400">地块高差最大值</span>
+                                <span class="font-bold text-red-400">18.5 cm</span>
+                            </div>
+                            <div class="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
+                                <div class="bg-red-500 h-full w-[80%]"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-gray-400">平整度合格率</span>
+                                <span class="font-bold text-yellow-400">72%</span>
+                            </div>
+                            <div class="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
+                                <div class="bg-yellow-500 h-full w-[72%]"></div>
+                            </div>
+                        </div>
+                        <div class="bg-blue-900/20 p-4 rounded border border-blue-500/30 text-sm text-blue-200">
+                            <i class="fas fa-info-circle mr-1"></i> 建议：西北角区域需进行填土平整，建议土方量 120 立方米。
+                        </div>
+                    </div>
+
+                    <button class="mt-auto w-full bg-agri-accent hover:bg-emerald-400 text-black font-bold py-3 rounded transition">
+                        导出分析报告 (PDF)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-vra" class="content-tab absolute inset-0 z-10 hidden flex">
+            <div class="w-1/2 h-full relative border-r border-agri-border">
+                <div class="absolute top-4 left-4 z-20 bg-black/70 px-3 py-1 rounded text-sm font-bold border border-green-500 text-green-400">原始 NDVI 影像 (长势)</div>
+                <div class="w-full h-full bg-[url('https://upload.wikimedia.org/wikipedia/commons/3/30/NDVI_10.jpg')] bg-cover bg-center filter contrast-125"></div>
+            </div>
+            
+            <div class="w-1/2 h-full relative bg-gray-900 flex flex-col">
+                <div class="absolute top-4 left-4 z-20 bg-black/70 px-3 py-1 rounded text-sm font-bold border border-blue-500 text-blue-400">生成处方图 (Grid Map)</div>
+                
+                <div class="flex-1 p-10 flex items-center justify-center bg-gray-800 relative overflow-hidden">
+                    <div class="grid grid-cols-10 grid-rows-10 gap-1 w-full max-w-lg aspect-square" id="prescription-grid">
+                        </div>
+                </div>
+
+                <div class="h-24 glass-panel border-t border-agri-border p-4 flex items-center justify-between">
+                    <div>
+                        <div class="text-xs text-gray-400 uppercase">策略选择</div>
+                        <select class="bg-black/50 border border-agri-border text-white text-sm rounded p-1 mt-1">
+                            <option>水稻-追肥变量策略 (省肥模式)</option>
+                            <option>小麦-除草变量策略</option>
+                            <option>棉花-化控调节</option>
+                        </select>
+                    </div>
+                    <div class="flex space-x-4 text-center">
+                        <div>
+                            <div class="text-xs text-gray-400">平均亩用量</div>
+                            <div class="text-lg font-bold text-white">12.5 kg</div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-gray-400">预计节省</div>
+                            <div class="text-lg font-bold text-agri-accent">15.8%</div>
+                        </div>
+                    </div>
+                    <button class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded font-bold shadow-lg shadow-blue-600/30 flex items-center">
+                        <i class="fas fa-upload mr-2"></i> 同步至无人机
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-3d" class="content-tab absolute inset-0 z-10 hidden pointer-events-none">
+            <div class="absolute right-6 top-20 w-72 glass-panel p-4 rounded-xl pointer-events-auto">
+                <h3 class="font-bold border-b border-gray-600 pb-2 mb-4"><i class="fas fa-mountain mr-2 text-agri-accent"></i>山地/果园三维规划</h3>
+                
+                <div class="space-y-4">
+                    <div class="bg-white/5 p-3 rounded border border-gray-600">
+                        <div class="text-xs text-gray-400 mb-1">地形坡度分析</div>
+                        <div class="flex items-end space-x-2">
+                            <span class="text-2xl font-bold text-yellow-400">25°</span>
+                            <span class="text-xs text-gray-400 mb-1">最大坡度</span>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span>仿地飞行高度</span>
+                            <span class="text-agri-accent">2.5m</span>
+                        </div>
+                        <input type="range" class="w-full h-1 bg-gray-600 rounded appearance-none cursor-pointer">
+                    </div>
+
+                    <div class="flex items-center space-x-2 text-xs text-gray-300">
+                        <input type="checkbox" checked class="accent-agri-accent">
+                        <span>启用自动避障路径修正</span>
+                    </div>
+
+                    <button class="w-full bg-gradient-to-r from-agri-accent to-emerald-600 text-black font-bold py-2 rounded shadow-lg">
+                        生成三维航线
+                    </button>
+                </div>
+            </div>
+
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 transition-opacity duration-500" id="waypoints-3d">
+                <svg width="800" height="600" viewBox="0 0 800 600" class="drop-shadow-[0_0_10px_#00f2c3]">
+                    <path d="M100,500 C150,450 200,550 250,500 S350,450 400,500 S550,450 600,500" fill="none" stroke="#00f2c3" stroke-width="4" stroke-dasharray="10,5" class="animate-pulse" />
+                    <g transform="translate(100,500)">
+                        <circle r="4" fill="white" />
+                        <text y="-10" fill="white" font-size="10" font-family="monospace">H:30m</text>
+                    </g>
+                    <g transform="translate(250,500)">
+                        <circle r="4" fill="white" />
+                        <text y="-10" fill="white" font-size="10" font-family="monospace">H:45m</text>
+                    </g>
+                     <g transform="translate(400,500)">
+                        <circle r="4" fill="white" />
+                        <text y="-10" fill="white" font-size="10" font-family="monospace">H:35m</text>
+                    </g>
+                </svg>
+            </div>
+        </div>
+
+        <div id="tab-monitor" class="content-tab absolute inset-0 z-10 hidden bg-agri-base p-6 overflow-y-auto">
+            <div class="grid grid-cols-4 gap-6 mb-6">
+                <div class="glass-panel p-4 rounded-xl border-t-4 border-blue-500">
+                    <div class="text-gray-400 text-xs uppercase">今日作业总面积</div>
+                    <div class="text-2xl font-bold mt-1">12,450 <span class="text-sm font-normal text-gray-500">亩</span></div>
+                </div>
+                <div class="glass-panel p-4 rounded-xl border-t-4 border-agri-accent">
+                    <div class="text-gray-400 text-xs uppercase">活跃设备数</div>
+                    <div class="text-2xl font-bold mt-1 text-agri-accent">42 <span class="text-sm font-normal text-gray-500">/ 50 台</span></div>
+                </div>
+                <div class="glass-panel p-4 rounded-xl border-t-4 border-yellow-500">
+                    <div class="text-gray-400 text-xs uppercase">违规预警</div>
+                    <div class="text-2xl font-bold mt-1 text-yellow-400">3 <span class="text-sm font-normal text-gray-500">起</span></div>
+                </div>
+                <div class="glass-panel p-4 rounded-xl border-t-4 border-purple-500">
+                    <div class="text-gray-400 text-xs uppercase">作业达标率</div>
+                    <div class="text-2xl font-bold mt-1">98.5%</div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-6 h-[500px]">
+                <div class="col-span-2 glass-panel rounded-xl flex flex-col">
+                    <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                        <h3 class="font-bold">农机实时监管</h3>
+                        <div class="flex space-x-2">
+                             <button class="text-xs bg-white/10 px-2 py-1 rounded">全部设备</button>
+                             <button class="text-xs bg-agri-accent/20 text-agri-accent px-2 py-1 rounded">作业中</button>
+                        </div>
+                    </div>
+                    <div class="flex-1 overflow-auto">
+                        <table class="w-full text-left text-sm text-gray-400">
+                            <thead class="bg-black/20 text-xs uppercase font-bold text-gray-500">
+                                <tr>
+                                    <th class="p-3">设备ID</th>
+                                    <th class="p-3">类型</th>
+                                    <th class="p-3">作业地块</th>
+                                    <th class="p-3">参数(速度/流量)</th>
+                                    <th class="p-3">操作员</th>
+                                    <th class="p-3">状态</th>
+                                    <th class="p-3">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-800">
+                                <tr class="hover:bg-white/5">
+                                    <td class="p-3 font-mono text-white">T60-2918</td>
+                                    <td class="p-3">植保无人机</td>
+                                    <td class="p-3">A04-水稻田</td>
+                                    <td class="p-3">5.5m/s | 2.4L/min</td>
+                                    <td class="p-3">张师傅</td>
+                                    <td class="p-3 text-green-400"><span class="w-2 h-2 rounded-full bg-green-400 inline-block mr-1"></span>正常</td>
+                                    <td class="p-3"><button class="text-blue-400 hover:text-blue-300">查看</button></td>
+                                </tr>
+                                 <tr class="hover:bg-white/5">
+                                    <td class="p-3 font-mono text-white">XAG-P100</td>
+                                    <td class="p-3">植保无人机</td>
+                                    <td class="p-3">C12-棉花地</td>
+                                    <td class="p-3">6.0m/s | 3.0L/min</td>
+                                    <td class="p-3">李工</td>
+                                    <td class="p-3 text-yellow-400"><span class="w-2 h-2 rounded-full bg-yellow-400 inline-block mr-1 animate-pulse"></span>超速警告</td>
+                                    <td class="p-3"><button class="text-red-400 hover:text-red-300">呼叫</button></td>
+                                </tr>
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="glass-panel rounded-xl p-4 flex flex-col">
+                    <h3 class="font-bold mb-4 flex items-center"><i class="fas fa-exclamation-triangle text-red-500 mr-2"></i>实时违规/异常</h3>
+                    <div class="space-y-3 overflow-y-auto">
+                        <div class="bg-red-900/20 border border-red-500/30 p-3 rounded-lg">
+                            <div class="flex justify-between items-start mb-1">
+                                <span class="font-bold text-red-400 text-sm">重喷率过高</span>
+                                <span class="text-xs text-gray-500">10:42 AM</span>
+                            </div>
+                            <p class="text-xs text-gray-300">设备 T60-2918 在 A04 地块重喷面积超过 15%。</p>
+                            <button class="mt-2 w-full text-xs bg-red-500/20 text-red-300 py-1 rounded hover:bg-red-500 hover:text-white transition">下发停机指令</button>
+                        </div>
+                        
+                        <div class="bg-yellow-900/20 border border-yellow-500/30 p-3 rounded-lg">
+                            <div class="flex justify-between items-start mb-1">
+                                <span class="font-bold text-yellow-400 text-sm">飞行高度不足</span>
+                                <span class="text-xs text-gray-500">10:38 AM</span>
+                            </div>
+                            <p class="text-xs text-gray-300">设备 M3M-02 离作物高度低于 1.5m，存在碰撞风险。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // ------------------ 1. 核心导航逻辑 ------------------
+        function switchTab(tabId) {
+            // 1. 隐藏所有 Tab
+            document.querySelectorAll('.content-tab').forEach(el => {
+                el.classList.add('hidden');
+            });
+            
+            // 2. 移除所有导航激活状态
+            document.querySelectorAll('.nav-item').forEach(el => {
+                el.classList.remove('active-nav', 'text-white', 'bg-white/5');
+                el.classList.add('text-gray-400');
+            });
+
+            // 3. 激活当前 Tab
+            document.getElementById(tabId).classList.remove('hidden');
+            
+            // 4. 激活当前导航样式
+            const activeNav = document.getElementById(tabId.replace('tab', 'nav'));
+            activeNav.classList.add('active-nav', 'text-white');
+            activeNav.classList.remove('text-gray-400');
+
+            // 5. 特殊处理：如果是 3D 模式，旋转地图
+            const map = document.getElementById('global-map');
+            const waypoints = document.getElementById('waypoints-3d');
+            
+            if (tabId === 'tab-3d') {
+                map.classList.add('map-3d-tilt');
+                setTimeout(() => { waypoints.style.opacity = '1'; }, 800); // 延迟显示航线
+            } else {
+                map.classList.remove('map-3d-tilt');
+                waypoints.style.opacity = '0';
+            }
+        }
+
+        // ------------------ 2. 智能分析模块逻辑 ------------------
+        function switchAnalysis(type) {
+            const algoName = document.getElementById('algo-name');
+            const reportContent = document.getElementById('analysis-report-content');
+            const overlay = document.getElementById('analysis-overlay');
+            
+            // 模拟切换不同分析类型的 UI 表现
+            if (type === 'level') {
+                algoName.innerText = "Terrain Leveling AI (平整度)";
+                overlay.innerHTML = '<div class="w-full h-full bg-gradient-to-tr from-blue-600 via-transparent to-red-600 opacity-60"></div>';
+                reportContent.innerHTML = `
+                    <div>
+                        <div class="flex justify-between text-sm mb-1"><span class="text-gray-400">地块高差最大值</span><span class="font-bold text-red-400">18.5 cm</span></div>
+                        <div class="w-full bg-gray-700 h-2 rounded-full overflow-hidden"><div class="bg-red-500 h-full w-[80%]"></div></div>
+                    </div>
+                    <div class="bg-blue-900/20 p-4 rounded border border-blue-500/30 text-sm text-blue-200"><i class="fas fa-info-circle mr-1"></i> 建议：西北角区域需进行填土平整。</div>`;
+            } else if (type === 'emergence') {
+                algoName.innerText = "Cotton Seedling Count (棉花出苗)";
+                // 生成模拟的小绿点代表苗
+                let dots = '';
+                for(let i=0; i<50; i++) {
+                    dots += `<div style="position:absolute; top:${Math.random()*100}%; left:${Math.random()*100}%; width:4px; height:4px; background:#00ff00; border-radius:50%; box-shadow:0 0 5px #00ff00;"></div>`;
+                }
+                overlay.innerHTML = dots;
+                reportContent.innerHTML = `
+                    <div class="grid grid-cols-2 gap-4 text-center">
+                        <div class="bg-white/10 p-2 rounded"><div class="text-xs text-gray-400">出苗率</div><div class="text-xl font-bold text-green-400">92.4%</div></div>
+                        <div class="bg-white/10 p-2 rounded"><div class="text-xs text-gray-400">平均株距</div><div class="text-xl font-bold">12cm</div></div>
+                    </div>
+                    <div class="bg-yellow-900/20 p-4 rounded border border-yellow-500/30 text-sm text-yellow-200 mt-4"><i class="fas fa-exclamation-circle mr-1"></i> 注意：东侧两垄存在缺苗现象，建议补种。</div>`;
+            } else if (type === 'yield') {
+                 algoName.innerText = "Yield Estimation (产量预估)";
+                 overlay.innerHTML = '<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-2 border-yellow-400 p-10 text-yellow-400 font-bold">识别区域: 稻穗计数</div>';
+                 reportContent.innerHTML = `
+                    <div class="text-center py-4">
+                        <div class="text-4xl font-bold text-agri-accent">620 <span class="text-sm text-gray-500">kg/亩</span></div>
+                        <div class="text-xs text-gray-400 mt-1">预估产量 (基于穗数 AI 统计)</div>
+                    </div>
+                    <div class="text-xs text-gray-500">相较去年同期增长: <span class="text-red-400">+5.2%</span></div>
+                 `;
+            }
+        }
+
+        // ------------------ 3. 处方图生成逻辑 (VRA) ------------------
+        const gridContainer = document.getElementById('prescription-grid');
+        // 生成 10x10 的网格
+        for (let i = 0; i < 100; i++) {
+            const div = document.createElement('div');
+            // 随机生成施肥量颜色 (深绿=多，浅绿=少)
+            const intensity = Math.random();
+            let colorClass = '';
+            if (intensity > 0.8) colorClass = 'bg-blue-600'; // 多肥
+            else if (intensity > 0.4) colorClass = 'bg-blue-400'; // 中肥
+            else colorClass = 'bg-blue-200'; // 少肥
+            
+            div.className = `w-full h-full ${colorClass} opacity-80 border border-black/10 hover:border-white transition cursor-pointer`;
+            div.title = `Grid #${i}: 推荐用量 ${(intensity*10).toFixed(1)} kg`;
+            gridContainer.appendChild(div);
+        }
+
+    </script>
+</body>
+</html>
